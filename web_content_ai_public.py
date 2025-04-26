@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-WEB CONTENT MANAGER - Fixed Login Form TypeError and Password Clearing
+WEB CONTENT MANAGER - Fixed Login Form TypeError by Removing Key Argument
 """
 import streamlit as st
 import pandas as pd
@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 # Verify Streamlit version
 if st.__version__ != "1.31.0":
-    st.error(f"Streamlit version {st.__version__} detected. This app requires 1.31.0. Please update requirements.txt or contact support.")
+    st.error(f"Streamlit version {st.__version__} detected. This app requires 1.31.0. Check Cloud logs or contact support.")
 
 # Set page configuration
 st.set_page_config(
@@ -591,6 +591,7 @@ def login_form():
     """, unsafe_allow_html=True)
     
     try:
+        logging.debug("Rendering login form")
         with st.form(key="login_form", clear_on_submit=True):
             password = st.text_input(
                 "Enter Password",
@@ -610,7 +611,7 @@ def login_form():
                 autocomplete="off"
             )
             
-            submitted = st.form_submit_button("🔑 Login", key=f"login_button_{st.session_state['password_input_counter']}")
+            submitted = st.form_submit_button("🔑 Login")
             
             if submitted:
                 logging.debug(f"Login attempt: Password={password}, Username={username}")
@@ -620,7 +621,7 @@ def login_form():
                     st.session_state['password_input_counter'] += 1
                     st.session_state['username_input_counter'] += 1
                     # Clear form-related session state
-                    for key in [password_input_key, username_input_key, f"login_button_{st.session_state['password_input_counter']}"]:
+                    for key in [password_input_key, username_input_key]:
                         if key in st.session_state:
                             del st.session_state[key]
                     st.success("✅ Logged in as Owner!")
@@ -632,7 +633,7 @@ def login_form():
                         st.session_state['password_input_counter'] += 1
                         st.session_state['username_input_counter'] += 1
                         # Clear form-related session state
-                        for key in [password_input_key, username_input_key, f"login_button_{st.session_state['password_input_counter']}"]:
+                        for key in [password_input_key, username_input_key]:
                             if key in st.session_state:
                                 del st.session_state[key]
                         st.success(f"✅ Logged in as Guest: {username}!")
