@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-WEB CONTENT MANAGER - Enhanced Version with Password Protection
+WEB CONTENT MANAGER - Enhanced Version with Password Protection and Unique Guest Files
 """
 import streamlit as st
 import pandas as pd
@@ -71,12 +71,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-def init_data(mode):
+def init_data(mode, username=None):
     """Initialize or load Excel file based on mode"""
     if mode == "owner":
         excel_file = 'web_links.xlsx'
     elif mode == "guest":
-        excel_file = 'guest_links.xlsx'
+        if not username:
+            raise ValueError("Username required for guest mode")
+        excel_file = f'guest_{username}.xlsx'
     else:
         return pd.DataFrame(), None  # Public mode uses session state
     
@@ -230,7 +232,7 @@ def add_link_section(df, excel_file, mode):
     # Determine the DataFrame to use
     working_df = st.session_state['user_df'] if mode == "public" else df
     
-    # Fetch Metadata button outside the form
+    # Fetch Metadata button
     url_temp = st.text_input(
         "URL*", 
         placeholder="https://example.com",
@@ -283,7 +285,7 @@ def add_link_section(df, excel_file, mode):
             "Tags",
             options=all_tags,
             default=[],
-            help="Select existing tags or add new ones below. Example: For a Python tutorial, use tags like 'python', 'tutorial', 'programming'.",
+            help="Select existing tags or add new ones below.",
             key="existing_tags_input"
         )
         
@@ -312,7 +314,6 @@ def add_link_section(df, excel_file, mode):
                             st.session_state['df'] = working_df
                             st.success(f"✅ Link {action} successfully!")
                             st.balloons()
-                            # Clear session state
                             for key in ['url_input', 'url_form_input', 'auto_title', 'auto_description', 
                                       'suggested_tags', 'title_input', 'description_input', 
                                       'existing_tags_input', 'new_tag_input']:
@@ -324,9 +325,8 @@ def add_link_section(df, excel_file, mode):
                             st.error("Failed to save link to Excel file")
                     else:
                         st.session_state['user_df'] = working_df
-                        st.success(f"✅ Link {action} successfully!")
+                        st.success(f"✅ Link {action} successfully! Download your links as they are temporary.")
                         st.balloons()
-                        # Clear session state
                         for key in ['url_input', 'url_form_input', 'auto_title', 'auto_description', 
                                   'suggested_tags', 'title_input', 'description_input', 
                                   'existing_tags_input', 'new_tag_input']:
@@ -340,7 +340,7 @@ def add_link_section(df, excel_file, mode):
     return working_df
 
 def browse_section(df, excel_file, mode):
-    """Section for browsing saved links with powerful search and delete functionality"""
+    """Section for browsing saved links"""
     st.markdown("### 📚 Browse Saved Links")
     
     # Use user_df for public mode
@@ -357,7 +357,7 @@ def browse_section(df, excel_file, mode):
                 "Search content",
                 placeholder="Search by title, URL, description, or tags",
                 key="search_query",
-                help="Enter words to filter links (e.g., part of title or tag)"
+                help="Enter words to filter links"
             )
         with tag_col:
             all_tags = sorted({str(tag).strip() for sublist in working_df['tags'] 
@@ -517,7 +517,7 @@ def download_section(df, excel_file, mode):
 def main():
     display_header()
     
-    # Password input in sidebar
+    # Password and username input in sidebar
     with st.sidebar:
         st.markdown("""
         <div style="padding: 1rem;">
@@ -528,17 +528,24 @@ def main():
         password = st.text_input(
             "Enter Password",
             type="password",
-            help="Enter the password to access owner or guest mode",
+            help="Enter the password for owner or guest mode",
             key="password_input"
         )
+        
+        username = st.text_input(
+            "Enter Username (Guest Mode)",
+            placeholder="Your username",
+            help="Required for guest mode to access your personal file",
+            key="username_input"
+        ) if password == GUEST_PASSWORD else None
         
         # Determine mode
         if password == ADMIN_PASSWORD:
             mode = "owner"
             st.markdown("<p style='color: green; font-weight: bold;'>Owner Mode</p>", unsafe_allow_html=True)
-        elif password == GUEST_PASSWORD:
+        elif password == GUEST_PASSWORD and username:
             mode = "guest"
-            st.markdown("<p style='color: blue; font-weight: bold;'>Guest Mode</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color: blue; font-weight: bold;'>Guest Mode ({username})</p>", unsafe_allow_html=True)
         else:
             mode = "public"
             st.markdown("<p style='color: gray; font-weight: bold;'>Public Mode</p>", unsafe_allow_html=True)
@@ -564,10 +571,11 @@ def main():
     
     # Initialize data based on mode
     if mode in ["owner", "guest"]:
-        if 'df' not in st.session_state:
-            df, excel_file = init_data(mode)
+        if 'df' not in st.session_state or st.session_state.get('username') != username:
+            df, excel_file = init_data(mode, username)
             st.session_state['df'] = df
             st.session_state['excel_file'] = excel_file
+            st.session_state['username'] = username
         else:
             df = st.session_state['df']
             excel_file = st.session_state['excel_file']
@@ -582,12 +590,12 @@ def main():
             <p>Web Content Manager helps you save and organize web links with:</p>
             <ul>
                 <li>📌 One-click saving of important web resources</li>
-                <li>🏷️ <strong>Smart tagging</strong> - Automatically suggests tags from page metadata</li>
-                <li>🔍 <strong>Powerful search</strong> - Full-text search across all fields with tag filtering</li>
+                <li>🏷️ <strong>Smart tagging</strong> - Automatically suggests tags</li>
+                <li>🔍 <strong>Powerful search</strong> - Full-text search with tag filtering</li>
                 <li>🗑️ <strong>Delete functionality</strong> - Remove unwanted links</li>
-                <li>📊 <strong>Data Table View</strong> - See all links in a sortable, filterable table</li>
-                <li>📥 <strong>Export capability</strong> - Download your collection in Excel or CSV format</li>
-                <li>💾 <strong>Persistent storage</strong> - Owner/guest data persists; public data is temporary</li>
+                <li>📊 <strong>Data Table View</strong> - View links in a table</li>
+                <li>📥 <strong>Export capability</strong> - Download as Excel or CSV</li>
+                <li>💾 <strong>Storage</strong> - Owner/guest data persists; public data is temporary</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
