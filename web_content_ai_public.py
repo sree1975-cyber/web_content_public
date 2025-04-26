@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-WEB CONTENT MANAGER - Fixed URL Clearing and Update Message
+WEB CONTENT MANAGER - Fixed Password Clearing with Login/Exit Buttons
 """
 import streamlit as st
 import pandas as pd
@@ -81,6 +81,13 @@ st.markdown("""
     
     .exit-btn {
         background-color: #ff4b4b !important;
+        color: white !important;
+        width: 100%;
+        margin-top: 1rem;
+    }
+    
+    .login-btn {
+        background-color: #6e8efb !important;
         color: white !important;
         width: 100%;
         margin-top: 1rem;
@@ -568,8 +575,17 @@ def download_section(df, excel_file, mode):
         </div>
         """, unsafe_allow_html=True)
 
-def main():
-    # Password and username input in sidebar
+def login_form():
+    """Display login form and handle authentication"""
+    # Dynamic keys for password and username inputs
+    if 'password_input_counter' not in st.session_state:
+        st.session_state['password_input_counter'] = 0
+    if 'username_input_counter' not in st.session_state:
+        st.session_state['username_input_counter'] = 0
+    
+    password_input_key = f"password_input_{st.session_state['password_input_counter']}"
+    username_input_key = f"username_input_{st.session_state['username_input_counter']}"
+    
     with st.sidebar:
         st.markdown("""
         <div style="padding: 1rem;">
@@ -577,36 +593,76 @@ def main():
         </div>
         """, unsafe_allow_html=True)
         
-        password = st.text_input(
-            "Enter Password",
-            type="password",
-            help="Enter the password for owner or guest mode",
-            key="password_input"
-        )
+        with st.form("login_form", clear_on_submit=True):
+            password = st.text_input(
+                "Enter Password",
+                type="password",
+                help="Enter the password for owner or guest mode",
+                key=password_input_key,
+                value='',
+                autocomplete="off"
+            )
+            
+            username = st.text_input(
+                "Enter Username (Guest Mode)",
+                placeholder="Your username",
+                help="Required for guest mode to access your personal file",
+                key=username_input_key,
+                value='',
+                autocomplete="off"
+            )
+            
+            submitted = st.form_submit_button("🔑 Login", key="login_button")
+            
+            if submitted:
+                logging.debug(f"Login attempt: Password={password}, Username={username}")
+                if password == ADMIN_PASSWORD:
+                    st.session_state['mode'] = "owner"
+                    st.session_state['username'] = None
+                    st.session_state['password_input_counter'] += 1
+                    st.session_state['username_input_counter'] += 1
+                    st.success("✅ Logged in as Owner!")
+                    time.sleep(1)
+                    st.rerun()
+                elif password == GUEST_PASSWORD:
+                    if username:
+                        st.session_state['mode'] = "guest"
+                        st.session_state['username'] = username
+                        st.session_state['password_input_counter'] += 1
+                        st.session_state['username_input_counter'] += 1
+                        st.success(f"✅ Logged in as Guest: {username}!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("Please enter a username for guest mode")
+                else:
+                    st.error("Invalid password")
+
+def main():
+    # Check if logged in
+    if 'mode' not in st.session_state:
+        login_form()
+        return
+    
+    mode = st.session_state['mode']
+    username = st.session_state.get('username')
+    
+    # Sidebar with Exit button and navigation
+    with st.sidebar:
+        st.markdown(f"""
+        <p style='color: {"green" if mode == "owner" else "blue" if mode == "guest" else "gray"}; font-weight: bold;'>
+            {mode.capitalize()} Mode{f" ({username})" if username else ""}
+        </p>
+        """, unsafe_allow_html=True)
         
-        username = st.text_input(
-            "Enter Username (Guest Mode)",
-            placeholder="Your username",
-            help="Required for guest mode to access your personal file",
-            key="username_input"
-        ) if password == GUEST_PASSWORD else None
-        
-        # Determine mode
-        if password == ADMIN_PASSWORD:
-            mode = "owner"
-            st.markdown("<p style='color: green; font-weight: bold;'>Owner Mode</p>", unsafe_allow_html=True)
-        elif password == GUEST_PASSWORD and username:
-            mode = "guest"
-            st.markdown(f"<p style='color: blue; font-weight: bold;'>Guest Mode ({username})</p>", unsafe_allow_html=True)
-        else:
-            mode = "public"
-            st.markdown("<p style='color: gray; font-weight: bold;'>Public Mode</p>", unsafe_allow_html=True)
-        
-        # Exit button
         if st.button("🚪 Exit and Clear Cache", key="exit_button", help="Clear all session data and reset the app"):
+            logging.debug(f"Exit button clicked. Session state before clear: {st.session_state}")
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
+            st.session_state['password_input_counter'] = st.session_state.get('password_input_counter', 0) + 1
+            st.session_state['username_input_counter'] = st.session_state.get('username_input_counter', 0) + 1
             st.success("✅ Session cleared! App will reset.")
+            logging.debug("Session state cleared")
             time.sleep(1)
             st.rerun()
         
