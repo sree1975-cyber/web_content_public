@@ -392,7 +392,7 @@ def add_link_section(df, excel_file, mode):
                             st.session_state['df'] = working_df
                             st.success(f"✅ Link {action} successfully!")
                             st.balloons()
-                            time.sleep(0.15)
+                            time.sleep(0.5)
                             st.session_state['clear_url'] = True
                             st.session_state['url_input_counter'] += 1
                             for key in ['auto_title', 'auto_description', 'suggested_tags']:
@@ -504,16 +504,11 @@ def browse_section(df, excel_file, mode):
             hide_index=True,
             column_config={
                 "Select": st.column_config.CheckboxColumn("Select", help="Select links to delete"),
-                "title": st.column_config.TextColumn("Title", width="medium"),
-                "url": st.column_config.LinkColumn(
-                    "URL",
-                    width="medium",
-                    help="Click to visit the webpage",
-                    display_text=lambda x: x[:50] + "..." if len(x) > 50 else x
-                ),
-                "description": st.column_config.TextColumn("Description", width="large"),
-                "tags": st.column_config.TextColumn("Tags"),
-                "created_at": st.column_config.DatetimeColumn("Date Added", format="YYYY-MM-DD HH:mm:ss")
+                "title": "Title",
+                "url": st.column_config.LinkColumn("URL"),
+                "description": "Description",
+                "tags": "Tags",
+                "created_at": "Date Added"
             },
             disabled=['title', 'url', 'description', 'tags', 'created_at'],
             key="data_editor"
