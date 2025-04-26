@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-WEB CONTENT MANAGER - Enhanced Version with Exit Button and URL Field Fix
+WEB CONTENT MANAGER - Enhanced Version with Fixed URL Field Clearing
 """
 import streamlit as st
 import pandas as pd
@@ -261,9 +261,13 @@ def add_link_section(df, excel_file, mode):
     # Determine the DataFrame to use
     working_df = st.session_state['user_df'] if mode == "public" else df
     
+    # Clear URL field if signaled
+    url_value = '' if st.session_state.get('clear_url', False) else st.session_state.get('url_input', '')
+    
     # Fetch Metadata button
     url_temp = st.text_input(
         "URL*", 
+        value=url_value,
         placeholder="https://example.com",
         key="url_input",
         help="Enter the full URL including https://"
@@ -277,6 +281,7 @@ def add_link_section(df, excel_file, mode):
             st.session_state['auto_title'] = title
             st.session_state['auto_description'] = description
             st.session_state['suggested_tags'] = keywords
+            st.session_state['clear_url'] = False  # Reset clear signal
     
     # Form for saving link
     with st.form("add_link_form", clear_on_submit=True):
@@ -343,12 +348,10 @@ def add_link_section(df, excel_file, mode):
                             st.session_state['df'] = working_df
                             st.success(f"✅ Link {action} successfully!")
                             st.balloons()
-                            # Clear session state explicitly
-                            st.session_state['url_input'] = ''
-                            st.session_state['url_form_input'] = ''
-                            for key in ['url_input', 'url_form_input', 'auto_title', 'auto_description', 
-                                      'suggested_tags', 'title_input', 'description_input', 
-                                      'existing_tags_input', 'new_tag_input']:
+                            # Signal to clear URL field on next render
+                            st.session_state['clear_url'] = True
+                            # Clear non-widget session state keys
+                            for key in ['auto_title', 'auto_description', 'suggested_tags']:
                                 if key in st.session_state:
                                     del st.session_state[key]
                             logging.debug("Cleared session state after save")
@@ -360,12 +363,10 @@ def add_link_section(df, excel_file, mode):
                         st.session_state['user_df'] = working_df
                         st.success(f"✅ Link {action} successfully! Download your links as they are temporary.")
                         st.balloons()
-                        # Clear session state explicitly
-                        st.session_state['url_input'] = ''
-                        st.session_state['url_form_input'] = ''
-                        for key in ['url_input', 'url_form_input', 'auto_title', 'auto_description', 
-                                  'suggested_tags', 'title_input', 'description_input', 
-                                  'existing_tags_input', 'new_tag_input']:
+                        # Signal to clear URL field on next render
+                        st.session_state['clear_url'] = True
+                        # Clear non-widget session state keys
+                        for key in ['auto_title', 'auto_description', 'suggested_tags']:
                             if key in st.session_state:
                                 del st.session_state[key]
                         logging.debug("Cleared session state after save")
@@ -613,7 +614,7 @@ def main():
         )
     
     # Initialize data based on mode
-    if mode in ["owner", "guest"]:
+    if mode in ["owner", 'guest']:
         if 'df' not in st.session_state or st.session_state.get('username') != username:
             df, excel_file = init_data(mode, username)
             st.session_state['df'] = df
