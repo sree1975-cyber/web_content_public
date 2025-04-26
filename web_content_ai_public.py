@@ -392,7 +392,7 @@ def add_link_section(df, excel_file, mode):
                             st.session_state['df'] = working_df
                             st.success(f"✅ Link {action} successfully!")
                             st.balloons()
-                            time.sleep(0.15)
+                            time.sleep(0.5)
                             st.session_state['clear_url'] = True
                             st.session_state['url_input_counter'] += 1
                             for key in ['auto_title', 'auto_description', 'suggested_tags']:
