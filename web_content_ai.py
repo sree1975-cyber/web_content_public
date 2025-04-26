@@ -25,7 +25,7 @@ st.set_page_config(
 )
 
 # Hardcoded passwords
-ADMIN_PASSWORD = "admin123"
+ADMIN_PASSWORD = "admin012345"
 GUEST_PASSWORD = "guest456"
 
 # Custom CSS
