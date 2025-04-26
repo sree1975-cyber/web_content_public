@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-WEB CONTENT MANAGER - Fixed URL Clearing and Update Message
+WEB CONTENT MANAGER - Fixed Login Form TypeError and Password Clearing
 """
 import streamlit as st
 import pandas as pd
@@ -10,11 +10,13 @@ from bs4 import BeautifulSoup
 from streamlit_option_menu import option_menu
 import logging
 import os
-import time
-from html import escape
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
+
+# Verify Streamlit version
+if st.__version__ != "1.31.0":
+    st.error(f"Streamlit version {st.__version__} detected. This app requires 1.31.0. Please update requirements.txt or contact support.")
 
 # Set page configuration
 st.set_page_config(
@@ -81,6 +83,13 @@ st.markdown("""
     
     .exit-btn {
         background-color: #ff4b4b !important;
+        color: white !important;
+        width: 100%;
+        margin-top: 1rem;
+    }
+    
+    .login-btn {
+        background-color: #6e8efb !important;
         color: white !important;
         width: 100%;
         margin-top: 1rem;
@@ -364,7 +373,6 @@ def add_link_section(df, excel_file, mode):
                                 if key in st.session_state:
                                     del st.session_state[key]
                             logging.debug(f"Cleared session state after {action}: {st.session_state}")
-                            time.sleep(2)
                             st.rerun()
                         else:
                             st.error("Failed to save link to Excel file")
@@ -383,13 +391,9 @@ def add_link_section(df, excel_file, mode):
                             if key in st.session_state:
                                 del st.session_state[key]
                         logging.debug(f"Cleared session state after {action}: {st.session_state}")
-                        time.sleep(2)
                         st.rerun()
                 else:
                     st.error("Failed to process link")
-    
-    # Debug output (remove after testing)
-    # st.write(f"Debug - Session state after render: {st.session_state}")
     
     return working_df
 
@@ -506,6 +510,7 @@ def browse_section(df, excel_file, mode):
 
 def format_tags(tags):
     """Format tags as pretty pills"""
+    from html import escape
     if not tags or (isinstance(tags, float) and pd.isna(tags)):
         return ""
     
@@ -568,46 +573,141 @@ def download_section(df, excel_file, mode):
         </div>
         """, unsafe_allow_html=True)
 
+def login_form():
+    """Display login form and handle authentication"""
+    # Dynamic keys for password and username inputs
+    if 'password_input_counter' not in st.session_state:
+        st.session_state['password_input_counter'] = 0
+    if 'username_input_counter' not in st.session_state:
+        st.session_state['username_input_counter'] = 0
+    
+    password_input_key = f"password_input_{st.session_state['password_input_counter']}"
+    username_input_key = f"username_input_{st.session_state['username_input_counter']}"
+    
+    st.markdown("""
+    <div style="padding: 1rem;">
+        <h2 style="margin-bottom: 1rem;">Access Control</h2>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    try:
+        with st.form(key="login_form", clear_on_submit=True):
+            password = st.text_input(
+                "Enter Password",
+                type="password",
+                help="Enter the password for owner or guest mode",
+                key=password_input_key,
+                value='',
+                autocomplete="off"
+            )
+            
+            username = st.text_input(
+                "Enter Username (Guest Mode)",
+                placeholder="Your username",
+                help="Required for guest mode to access your personal file",
+                key=username_input_key,
+                value='',
+                autocomplete="off"
+            )
+            
+            submitted = st.form_submit_button("🔑 Login", key=f"login_button_{st.session_state['password_input_counter']}")
+            
+            if submitted:
+                logging.debug(f"Login attempt: Password={password}, Username={username}")
+                if password == ADMIN_PASSWORD:
+                    st.session_state['mode'] = "owner"
+                    st.session_state['username'] = None
+                    st.session_state['password_input_counter'] += 1
+                    st.session_state['username_input_counter'] += 1
+                    # Clear form-related session state
+                    for key in [password_input_key, username_input_key, f"login_button_{st.session_state['password_input_counter']}"]:
+                        if key in st.session_state:
+                            del st.session_state[key]
+                    st.success("✅ Logged in as Owner!")
+                    st.rerun()
+                elif password == GUEST_PASSWORD:
+                    if username:
+                        st.session_state['mode'] = "guest"
+                        st.session_state['username'] = username
+                        st.session_state['password_input_counter'] += 1
+                        st.session_state['username_input_counter'] += 1
+                        # Clear form-related session state
+                        for key in [password_input_key, username_input_key, f"login_button_{st.session_state['password_input_counter']}"]:
+                            if key in st.session_state:
+                                del st.session_state[key]
+                        st.success(f"✅ Logged in as Guest: {username}!")
+                        st.rerun()
+                    else:
+                        st.error("Please enter a username for guest mode")
+                else:
+                    st.error("Invalid password")
+    except Exception as e:
+        st.error(f"Form error: {str(e)}. Using fallback login.")
+        logging.error(f"Form error: {str(e)}")
+        # Fallback non-form login
+        password = st.text_input(
+            "Enter Password (Fallback)",
+            type="password",
+            key=f"fallback_password_{st.session_state['password_input_counter']}",
+            value='',
+            autocomplete="off"
+        )
+        username = st.text_input(
+            "Enter Username (Guest Mode, Fallback)",
+            placeholder="Your username",
+            key=f"fallback_username_{st.session_state['username_input_counter']}",
+            value='',
+            autocomplete="off"
+        )
+        if st.button("🔑 Login (Fallback)", key=f"fallback_login_{st.session_state['password_input_counter']}"):
+            logging.debug(f"Fallback login attempt: Password={password}, Username={username}")
+            if password == ADMIN_PASSWORD:
+                st.session_state['mode'] = "owner"
+                st.session_state['username'] = None
+                st.session_state['password_input_counter'] += 1
+                st.session_state['username_input_counter'] += 1
+                st.success("✅ Logged in as Owner!")
+                st.rerun()
+            elif password == GUEST_PASSWORD and username:
+                st.session_state['mode'] = "guest"
+                st.session_state['username'] = username
+                st.session_state['password_input_counter'] += 1
+                st.session_state['username_input_counter'] += 1
+                st.success(f"✅ Logged in as Guest: {username}!")
+                st.rerun()
+            elif password == GUEST_PASSWORD:
+                st.error("Please enter a username for guest mode")
+            else:
+                st.error("Invalid password")
+    
+    # Debug output (remove after testing)
+    # st.write(f"Debug - Session state after login form: {st.session_state}")
+
 def main():
-    # Password and username input in sidebar
+    # Check if logged in
+    if 'mode' not in st.session_state:
+        login_form()
+        return
+    
+    mode = st.session_state['mode']
+    username = st.session_state.get('username')
+    
+    # Sidebar with Exit button and navigation
     with st.sidebar:
-        st.markdown("""
-        <div style="padding: 1rem;">
-            <h2 style="margin-bottom: 1rem;">Access Control</h2>
-        </div>
+        st.markdown(f"""
+        <p style='color: {"green" if mode == "owner" else "blue" if mode == "guest" else "gray"}; font-weight: bold;'>
+            {mode.capitalize()} Mode{f" ({username})" if username else ""}
+        </p>
         """, unsafe_allow_html=True)
         
-        password = st.text_input(
-            "Enter Password",
-            type="password",
-            help="Enter the password for owner or guest mode",
-            key="password_input"
-        )
-        
-        username = st.text_input(
-            "Enter Username (Guest Mode)",
-            placeholder="Your username",
-            help="Required for guest mode to access your personal file",
-            key="username_input"
-        ) if password == GUEST_PASSWORD else None
-        
-        # Determine mode
-        if password == ADMIN_PASSWORD:
-            mode = "owner"
-            st.markdown("<p style='color: green; font-weight: bold;'>Owner Mode</p>", unsafe_allow_html=True)
-        elif password == GUEST_PASSWORD and username:
-            mode = "guest"
-            st.markdown(f"<p style='color: blue; font-weight: bold;'>Guest Mode ({username})</p>", unsafe_allow_html=True)
-        else:
-            mode = "public"
-            st.markdown("<p style='color: gray; font-weight: bold;'>Public Mode</p>", unsafe_allow_html=True)
-        
-        # Exit button
         if st.button("🚪 Exit and Clear Cache", key="exit_button", help="Clear all session data and reset the app"):
+            logging.debug(f"Exit button clicked. Session state before clear: {st.session_state}")
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
+            st.session_state['password_input_counter'] = st.session_state.get('password_input_counter', 0) + 1
+            st.session_state['username_input_counter'] = st.session_state.get('username_input_counter', 0) + 1
             st.success("✅ Session cleared! App will reset.")
-            time.sleep(1)
+            logging.debug("Session state cleared")
             st.rerun()
         
         st.markdown("""
