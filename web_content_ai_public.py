@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-WEB CONTENT MANAGER - Fixed Login Form TypeError by Removing Key Argument
+WEB CONTENT MANAGER - Restored Public Access, Fixed Save Messages/Balloons, XLS-Only Downloads, Clickable URLs
 """
 import streamlit as st
 import pandas as pd
@@ -10,6 +10,8 @@ from bs4 import BeautifulSoup
 from streamlit_option_menu import option_menu
 import logging
 import os
+import time
+from io import BytesIO
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -41,7 +43,6 @@ st.markdown("""
         margin-bottom: 2rem;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
-    
     .card {
         background: white;
         border-radius: 10px;
@@ -49,11 +50,9 @@ st.markdown("""
         margin-bottom: 1rem;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     }
-    
     .dataframe {
         width: 100%;
     }
-    
     .tag {
         display: inline-block;
         background: #e0e7ff;
@@ -64,13 +63,11 @@ st.markdown("""
         margin-right: 0.5rem;
         margin-bottom: 0.3rem;
     }
-    
     .delete-btn {
         background-color: #ff4b4b !important;
         color: white !important;
         margin-top: 0.5rem;
     }
-    
     .mode-indicator {
         background: #e0e7ff;
         color: #4f46e5;
@@ -80,19 +77,49 @@ st.markdown("""
         font-weight: bold;
         text-align: center;
     }
-    
     .exit-btn {
         background-color: #ff4b4b !important;
         color: white !important;
         width: 100%;
         margin-top: 1rem;
     }
-    
     .login-btn {
         background-color: #6e8efb !important;
         color: white !important;
         width: 100%;
         margin-top: 1rem;
+    }
+    .login-container {
+        background: white;
+        padding: 2rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        max-width: 500px;
+        margin: 2rem auto;
+    }
+    .login-title {
+        text-align: center;
+        color: #4f46e5;
+        margin-bottom: 1rem;
+    }
+    .login-info {
+        text-align: center;
+        color: #666;
+        margin-bottom: 1.5rem;
+    }
+    .stButton>button {
+        width: 100%;
+        border-radius: 5px;
+    }
+    .login-btn:hover {
+        background-color: #5a7de3 !important;
+    }
+    .public-btn {
+        background-color: #10b981 !important;
+        color: white !important;
+    }
+    .public-btn:hover {
+        background-color: #0e9f6e !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -202,12 +229,14 @@ def delete_selected_links(df, excel_file, selected_urls, mode):
                 st.session_state['df'] = df
                 st.success(f"✅ {len(selected_urls)} link(s) deleted successfully!")
                 st.balloons()
+                time.sleep(0.5)
             else:
                 st.error("Failed to save changes after deletion")
         else:
             st.session_state['user_df'] = df
             st.success(f"✅ {len(selected_urls)} link(s) deleted successfully!")
             st.balloons()
+            time.sleep(0.5)
         return df
     except Exception as e:
         st.error(f"Error deleting links: {str(e)}")
@@ -295,7 +324,7 @@ def add_link_section(df, excel_file, mode):
             st.session_state['auto_title'] = title
             st.session_state['auto_description'] = description
             st.session_state['suggested_tags'] = keywords
-            st.session_state['clear_url'] = False  # Reset clear signal
+            st.session_state['clear_url'] = False
     
     # Form for saving link
     with st.form("add_link_form", clear_on_submit=True):
@@ -357,40 +386,29 @@ def add_link_section(df, excel_file, mode):
             else:
                 working_df, action = save_link(working_df, url, title, description, tags)
                 if action:
+                    logging.debug(f"Displaying success message and balloons for action: {action}")
                     if mode in ["owner", "guest"]:
                         if save_data(working_df, excel_file):
                             st.session_state['df'] = working_df
-                            if action == "updated":
-                                st.success("✅ URL exists and updated!")
-                            else:
-                                st.success("✅ Link saved successfully!")
+                            st.success(f"✅ Link {action} successfully!")
                             st.balloons()
-                            # Signal to clear URL field and increment counter
+                            time.sleep(0.5)
                             st.session_state['clear_url'] = True
                             st.session_state['url_input_counter'] += 1
-                            # Clear non-widget session state keys
                             for key in ['auto_title', 'auto_description', 'suggested_tags']:
-                                if key in st.session_state:
-                                    del st.session_state[key]
-                            logging.debug(f"Cleared session state after {action}: {st.session_state}")
+                                st.session_state.pop(key, None)
                             st.rerun()
                         else:
                             st.error("Failed to save link to Excel file")
                     else:
                         st.session_state['user_df'] = working_df
-                        if action == "updated":
-                            st.success("✅ URL exists and updated! Download your links as they are temporary.")
-                        else:
-                            st.success("✅ Link saved successfully! Download your links as they are temporary.")
+                        st.success(f"✅ Link {action} successfully! Download your links as they are temporary.")
                         st.balloons()
-                        # Signal to clear URL field and increment counter
+                        time.sleep(0.5)
                         st.session_state['clear_url'] = True
                         st.session_state['url_input_counter'] += 1
-                        # Clear non-widget session state keys
                         for key in ['auto_title', 'auto_description', 'suggested_tags']:
-                            if key in st.session_state:
-                                del st.session_state[key]
-                        logging.debug(f"Cleared session state after {action}: {st.session_state}")
+                            st.session_state.pop(key, None)
                         st.rerun()
                 else:
                     st.error("Failed to process link")
@@ -486,11 +504,16 @@ def browse_section(df, excel_file, mode):
             hide_index=True,
             column_config={
                 "Select": st.column_config.CheckboxColumn("Select", help="Select links to delete"),
-                "title": "Title",
-                "url": st.column_config.LinkColumn("URL"),
-                "description": "Description",
-                "tags": "Tags",
-                "created_at": "Date Added"
+                "title": st.column_config.TextColumn("Title", width="medium"),
+                "url": st.column_config.LinkColumn(
+                    "URL",
+                    width="medium",
+                    help="Click to visit the webpage",
+                    display_text=lambda x: x[:50] + "..." if len(x) > 50 else x
+                ),
+                "description": st.column_config.TextColumn("Description", width="large"),
+                "tags": st.column_config.TextColumn("Tags"),
+                "created_at": st.column_config.DatetimeColumn("Date Added", format="YYYY-MM-DD HH:mm:ss")
             },
             disabled=['title', 'url', 'description', 'tags', 'created_at'],
             key="data_editor"
@@ -528,7 +551,7 @@ def format_tags(tags):
     return "".join(html_tags)
 
 def download_section(df, excel_file, mode):
-    """Section for downloading data"""
+    """Section for downloading data (XLS only)"""
     st.markdown("### 📥 Export Your Links")
     
     # Use user_df for public mode
@@ -542,29 +565,29 @@ def download_section(df, excel_file, mode):
         st.markdown("""
         <div class="card">
             <h3>Export Options</h3>
-            <p>Download your saved links in different formats</p>
+            <p>Download your saved links in Excel format</p>
         </div>
         """, unsafe_allow_html=True)
         
-        col1, col2 = st.columns(2)
-        with col1:
-            if mode in ["owner", "guest"] and excel_file:
-                with open(excel_file, 'rb') as f:
-                    st.download_button(
-                        label=f"Download {mode.capitalize()} Links (Excel)",
-                        data=f,
-                        file_name=f"{mode}_links.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        help=f"Download all {mode} links in Excel format"
-                    )
-        with col2:
-            csv = working_df.to_csv(index=False).encode('utf-8')
+        if mode in ["owner", "guest"] and excel_file:
+            with open(excel_file, 'rb') as f:
+                st.download_button(
+                    label=f"Download {mode.capitalize()} Links (Excel)",
+                    data=f,
+                    file_name=f"{mode}_links.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    help=f"Download all {mode} links in Excel format"
+                )
+        elif mode == "public" and not working_df.empty:
+            output = BytesIO()
+            working_df.to_excel(output, index=False, engine='openpyxl')
+            output.seek(0)
             st.download_button(
-                label="Download CSV",
-                data=csv,
-                file_name=f"{mode}_links.csv",
-                mime="text/csv",
-                help=f"Download all {mode} links in CSV format"
+                label="Download Public Links (Excel)",
+                data=output,
+                file_name="public_links.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                help="Download all public links in Excel format"
             )
         
         st.markdown(f"""
@@ -574,7 +597,7 @@ def download_section(df, excel_file, mode):
         """, unsafe_allow_html=True)
 
 def login_form():
-    """Display login form and handle authentication"""
+    """Display login form with public access option"""
     # Dynamic keys for password and username inputs
     if 'password_input_counter' not in st.session_state:
         st.session_state['password_input_counter'] = 0
@@ -585,13 +608,13 @@ def login_form():
     username_input_key = f"username_input_{st.session_state['username_input_counter']}"
     
     st.markdown("""
-    <div style="padding: 1rem;">
-        <h2 style="margin-bottom: 1rem;">Access Control</h2>
+    <div class="login-container">
+        <h2 class="login-title">🔖 Web Content Manager</h2>
+        <p class="login-info">Log in as Owner or Guest, or continue as Public to save links temporarily.</p>
     </div>
     """, unsafe_allow_html=True)
     
     try:
-        logging.debug("Rendering login form")
         with st.form(key="login_form", clear_on_submit=True):
             password = st.text_input(
                 "Enter Password",
@@ -619,11 +642,7 @@ def login_form():
                     st.session_state['mode'] = "owner"
                     st.session_state['username'] = None
                     st.session_state['password_input_counter'] += 1
-                    st.session_state['username_input_counter'] += 1
-                    # Clear form-related session state
-                    for key in [password_input_key, username_input_key]:
-                        if key in st.session_state:
-                            del st.session_state[key]
+                    st.session_state['username_input_counter'] = 1
                     st.success("✅ Logged in as Owner!")
                     st.rerun()
                 elif password == GUEST_PASSWORD:
@@ -632,16 +651,16 @@ def login_form():
                         st.session_state['username'] = username
                         st.session_state['password_input_counter'] += 1
                         st.session_state['username_input_counter'] += 1
-                        # Clear form-related session state
-                        for key in [password_input_key, username_input_key]:
-                            if key in st.session_state:
-                                del st.session_state[key]
                         st.success(f"✅ Logged in as Guest: {username}!")
                         st.rerun()
                     else:
                         st.error("Please enter a username for guest mode")
                 else:
                     st.error("Invalid password")
+                    st.session_state['mode'] = "public"
+                    st.session_state['password_input_counter'] += 1
+                    st.session_state['username_input_counter'] += 1
+                    st.rerun()
     except Exception as e:
         st.error(f"Form error: {str(e)}. Using fallback login.")
         logging.error(f"Form error: {str(e)}")
@@ -679,10 +698,16 @@ def login_form():
             elif password == GUEST_PASSWORD:
                 st.error("Please enter a username for guest mode")
             else:
-                st.error("Invalid password")
+                st.session_state['mode'] = "public"
+                st.session_state['password_input_counter'] += 1
+                st.session_state['username_input_counter'] += 1
+                st.rerun()
     
-    # Debug output (remove after testing)
-    # st.write(f"Debug - Session state after login form: {st.session_state}")
+    if st.button("🌐 Continue as Public", key="public_access_button", help="Access without logging in (temporary storage)"):
+        st.session_state['mode'] = "public"
+        st.session_state['password_input_counter'] += 1
+        st.session_state['username_input_counter'] += 1
+        st.rerun()
 
 def main():
     # Check if logged in
@@ -705,10 +730,11 @@ def main():
             logging.debug(f"Exit button clicked. Session state before clear: {st.session_state}")
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
-            st.session_state['password_input_counter'] = st.session_state.get('password_input_counter', 0) + 1
-            st.session_state['username_input_counter'] = st.session_state.get('username_input_counter', 0) + 1
+            st.session_state['password_input_counter'] = 0
+            st.session_state['username_input_counter'] = 0
             st.success("✅ Session cleared! App will reset.")
-            logging.debug("Session state cleared")
+            st.balloons()
+            time.sleep(0.5)
             st.rerun()
         
         st.markdown("""
@@ -742,6 +768,11 @@ def main():
             excel_file = st.session_state['excel_file']
     else:
         df, excel_file = pd.DataFrame(), None
+        if 'user_df' not in st.session_state:
+            st.session_state['user_df'] = pd.DataFrame(columns=[
+                'id', 'url', 'title', 'description', 'tags', 
+                'created_at', 'updated_at'
+            ])
     
     # Display header with mode indicator
     display_header(mode, username)
@@ -758,7 +789,7 @@ def main():
                 <li>🔍 <strong>Powerful search</strong> - Full-text search with tag filtering</li>
                 <li>🗑️ <strong>Delete functionality</strong> - Remove unwanted links</li>
                 <li>📊 <strong>Data Table View</strong> - View links in a table</li>
-                <li>📥 <strong>Export capability</strong> - Download as Excel or CSV</li>
+                <li>📥 <strong>Export capability</strong> - Download as Excel</li>
                 <li>💾 <strong>Storage</strong> - Owner/guest data persists; public data is temporary</li>
             </ul>
         </div>
