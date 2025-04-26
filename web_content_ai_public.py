@@ -229,14 +229,14 @@ def delete_selected_links(df, excel_file, selected_urls, mode):
                 st.session_state['df'] = df
                 st.success(f"✅ {len(selected_urls)} link(s) deleted successfully!")
                 st.balloons()
-                time.sleep(0.50)
+                time.sleep(0.5)
             else:
                 st.error("Failed to save changes after deletion")
         else:
             st.session_state['user_df'] = df
             st.success(f"✅ {len(selected_urls)} link(s) deleted successfully!")
             st.balloons()
-            time.sleep(0.50)
+            time.sleep(0.5)
         return df
     except Exception as e:
         st.error(f"Error deleting links: {str(e)}")
